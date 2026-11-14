@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 *.zip
 *.csv
+# Local credentials for Email and SMS. .env.example is the template.
+.env
