@@ -1,12 +1,22 @@
 """SQLite storage: schema creation and every query the app runs.
 
-All queries use ``?`` placeholders. Record queries always filter by
+All queries use ``?`` placeholders. Every query on a user's data filters by
 ``user_id`` so one user can never read or delete another user's rows.
 """
 import sqlite3
 from pathlib import Path
 
-DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "fakedata.db"
+_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_DB_PATH = _ROOT / "utilities.db"
+_OLD_DB_PATH = _ROOT / "fakedata.db"  # name used before the app had more than one tool
+
+
+def default_db_path():
+    """Return the database path, renaming the old file once if it is still there."""
+    if _OLD_DB_PATH.exists() and not DEFAULT_DB_PATH.exists():
+        _OLD_DB_PATH.rename(DEFAULT_DB_PATH)
+    return DEFAULT_DB_PATH
+
 
 # The 10 generated fields, in display order. "fake_username" is the
 # generated username (shown as "Username"), not the login username.
@@ -61,6 +71,31 @@ CREATE TABLE IF NOT EXISTS records (
 );
 
 CREATE INDEX IF NOT EXISTS idx_records_user ON records (user_id);
+
+CREATE TABLE IF NOT EXISTS short_links (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    long_url   TEXT NOT NULL,
+    short_url  TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_short_links_user ON short_links (user_id);
+
+-- One row per email or SMS the user tried to send, including failed ones.
+CREATE TABLE IF NOT EXISTS messages (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    channel    TEXT NOT NULL CHECK (channel IN ('email', 'sms')),
+    recipient  TEXT NOT NULL,
+    subject    TEXT NOT NULL DEFAULT '',
+    body       TEXT NOT NULL,
+    status     TEXT NOT NULL CHECK (status IN ('sent', 'failed')),
+    error      TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_user ON messages (user_id, channel);
 """
 
 _COLUMNS = ", ".join(RECORD_FIELDS)
@@ -130,10 +165,60 @@ class Database:
 
     def delete_records(self, user_id, record_ids):
         """Delete only rows that belong to user_id. Returns how many were deleted."""
+        return self._delete_owned(
+            "DELETE FROM records WHERE id = ? AND user_id = ?", user_id, record_ids)
+
+    def _delete_owned(self, sql, user_id, row_ids):
         before = self.conn.total_changes
         with self.conn:
-            self.conn.executemany(
-                "DELETE FROM records WHERE id = ? AND user_id = ?",
-                [(int(rid), user_id) for rid in record_ids],
-            )
+            self.conn.executemany(sql, [(int(rid), user_id) for rid in row_ids])
         return self.conn.total_changes - before
+
+    # ---- short links -------------------------------------------------
+    def add_link(self, user_id, long_url, short_url):
+        with self.conn:
+            cur = self.conn.execute(
+                "INSERT INTO short_links (user_id, long_url, short_url) VALUES (?, ?, ?)",
+                (user_id, long_url, short_url),
+            )
+        return cur.lastrowid
+
+    def find_link(self, user_id, long_url):
+        """The user's existing short link for this exact URL, or None."""
+        return self.conn.execute(
+            "SELECT id, long_url, short_url, created_at FROM short_links"
+            " WHERE user_id = ? AND long_url = ? ORDER BY id DESC LIMIT 1",
+            (user_id, long_url),
+        ).fetchone()
+
+    def list_links(self, user_id):
+        return self.conn.execute(
+            "SELECT id, long_url, short_url, created_at FROM short_links"
+            " WHERE user_id = ? ORDER BY id DESC",
+            (user_id,),
+        ).fetchall()
+
+    def delete_links(self, user_id, link_ids):
+        return self._delete_owned(
+            "DELETE FROM short_links WHERE id = ? AND user_id = ?", user_id, link_ids)
+
+    # ---- messages (email and SMS log) --------------------------------
+    def add_message(self, user_id, channel, recipient, body, status, subject="", error=""):
+        with self.conn:
+            cur = self.conn.execute(
+                "INSERT INTO messages (user_id, channel, recipient, subject, body, status, error)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (user_id, channel, recipient, subject, body, status, error),
+            )
+        return cur.lastrowid
+
+    def list_messages(self, user_id, channel):
+        return self.conn.execute(
+            "SELECT id, recipient, subject, body, status, error, created_at FROM messages"
+            " WHERE user_id = ? AND channel = ? ORDER BY id DESC",
+            (user_id, channel),
+        ).fetchall()
+
+    def delete_messages(self, user_id, message_ids):
+        return self._delete_owned(
+            "DELETE FROM messages WHERE id = ? AND user_id = ?", user_id, message_ids)

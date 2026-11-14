@@ -86,6 +86,44 @@ class DatabaseTests(unittest.TestCase):
         with self.assertRaises(KeyError):
             self.db.insert_records(uid, [rec])
 
+    def test_links_are_scoped_per_user(self):
+        a = self.db.create_user("alice", "ab" * 16, "cd" * 32)
+        b = self.db.create_user("bob", "ab" * 16, "cd" * 32)
+        link_id = self.db.add_link(a, "https://example.com/long", "https://is.gd/abc123")
+        self.assertEqual(self.db.find_link(a, "https://example.com/long")["short_url"],
+                         "https://is.gd/abc123")
+        self.assertIsNone(self.db.find_link(b, "https://example.com/long"))
+        self.assertEqual(self.db.list_links(b), [])
+        self.assertEqual(self.db.delete_links(b, [link_id]), 0)
+        self.assertEqual(self.db.delete_links(a, [link_id]), 1)
+
+    def test_messages_are_scoped_per_user_and_channel(self):
+        a = self.db.create_user("alice", "ab" * 16, "cd" * 32)
+        b = self.db.create_user("bob", "ab" * 16, "cd" * 32)
+        mail_id = self.db.add_message(a, "email", "x@example.com", "hello", "sent", subject="Hi")
+        self.db.add_message(a, "sms", "+639171234567", "hello", "failed", error="No device")
+        self.assertEqual([m["subject"] for m in self.db.list_messages(a, "email")], ["Hi"])
+        self.assertEqual([m["error"] for m in self.db.list_messages(a, "sms")], ["No device"])
+        self.assertEqual(self.db.list_messages(b, "email"), [])
+        self.assertEqual(self.db.delete_messages(b, [mail_id]), 0)
+        self.assertEqual(self.db.delete_messages(a, [mail_id]), 1)
+
+    def test_message_channel_and_status_are_checked(self):
+        a = self.db.create_user("alice", "ab" * 16, "cd" * 32)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.add_message(a, "fax", "x", "hello", "sent")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.add_message(a, "sms", "x", "hello", "maybe")
+
+    def test_deleting_a_user_removes_their_data(self):
+        a = self.db.create_user("alice", "ab" * 16, "cd" * 32)
+        self.db.add_link(a, "https://example.com", "https://is.gd/x")
+        self.db.add_message(a, "sms", "+639171234567", "hello", "sent")
+        with self.db.conn:
+            self.db.conn.execute("DELETE FROM users WHERE id = ?", (a,))
+        self.assertEqual(self.db.conn.execute("SELECT COUNT(*) FROM short_links").fetchone()[0], 0)
+        self.assertEqual(self.db.conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
