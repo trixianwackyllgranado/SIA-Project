@@ -24,9 +24,9 @@ class LoginFrame(ttk.Frame):
         card.columnconfigure((0, 1), weight=1, uniform="half")
         self.card = card
 
-        ttk.Label(card, text="Fake Data Generator", style="CardTitle.TLabel").grid(
+        ttk.Label(card, text="Utility Hub", style="CardTitle.TLabel").grid(
             row=0, column=0, columnspan=2)
-        ttk.Label(card, text="Philippine sample records for testing", style="CardMuted.TLabel").grid(
+        ttk.Label(card, text="Fake data, short links, email and SMS", style="CardMuted.TLabel").grid(
             row=1, column=0, columnspan=2, pady=(2, 20))
 
         # Equal-width segmented switch: Log in | Register

@@ -9,12 +9,14 @@ PALETTES = {
         "border": "#D6DBE4", "input": "#FFFFFF", "accent": "#2F6FEB", "accent_hover": "#2459C4",
         "accent_fg": "#FFFFFF", "danger": "#C93C3C", "danger_hover": "#A93030",
         "success": "#1F8A4C", "select": "#D9E6FF", "row_alt": "#F7F9FC", "heading": "#EDF0F5",
+        "banner": "#FFF6E0", "banner_border": "#F0D9A0",
     },
     "dark": {
         "bg": "#141821", "surface": "#1D232E", "text": "#E5E9F0", "muted": "#99A2B3",
         "border": "#333B4B", "input": "#151A23", "accent": "#5B8DEF", "accent_hover": "#4677DB",
         "accent_fg": "#FFFFFF", "danger": "#E06666", "danger_hover": "#C95252",
         "success": "#4CC38A", "select": "#2B3D61", "row_alt": "#222937", "heading": "#262D3B",
+        "banner": "#3A3220", "banner_border": "#6B5A2E",
     },
 }
 
@@ -36,6 +38,7 @@ def setup_fonts(root):
         "small": (family, 9),
         "bold": (family, 10, "bold"),
         "title": (family, 18, "bold"),
+        "sidebar": (family, 15, "bold"),
         "subtitle": (family, 11),
         "empty": (family, 12),
     }
@@ -73,20 +76,48 @@ def apply_theme(root, name, fonts):
     style.configure("CardError.TLabel", background=p["surface"], foreground=p["danger"])
     style.configure("CardSuccess.TLabel", background=p["surface"], foreground=p["success"])
     style.configure("Empty.TLabel", background=p["surface"], foreground=p["muted"], font=fonts["empty"])
+    style.configure("CardMutedSmall.TLabel", background=p["surface"], foreground=p["muted"], font=fonts["small"])
+    style.configure("CardLink.TLabel", background=p["surface"], foreground=p["accent"], font=fonts["bold"])
+    style.configure("Section.TLabel", background=p["bg"], foreground=p["text"], font=fonts["bold"])
 
-    # Buttons
+    # Setup notice shown on the Email and SMS pages
+    style.configure("Banner.TFrame", background=p["banner"], relief="solid", borderwidth=1,
+                    bordercolor=p["banner_border"])
+    style.configure("Banner.TLabel", background=p["banner"], foreground=p["text"])
+
+    # Sidebar
+    style.configure("Sidebar.TFrame", background=p["surface"])
+    style.configure("SidebarTitle.TLabel", background=p["surface"], foreground=p["text"], font=fonts["sidebar"])
+    style.configure("Sidebar.TLabel", background=p["surface"], foreground=p["muted"], font=fonts["small"])
+    nav = dict(foreground=p["text"], anchor="w", padding=(12, 9), relief="flat", borderwidth=0)
+    style.configure("Nav.TButton", background=p["surface"], bordercolor=p["surface"],
+                    lightcolor=p["surface"], darkcolor=p["surface"], **nav)
+    style.map("Nav.TButton", background=[("pressed", p["heading"]), ("active", p["heading"])])
+    style.configure("NavActive.TButton", background=p["select"], bordercolor=p["select"],
+                    lightcolor=p["select"], darkcolor=p["select"], font=fonts["bold"], **nav)
+    style.map("NavActive.TButton", background=[("active", p["select"])])
+    style.configure("TSeparator", background=p["border"])
+
+    # Buttons: a thin border so a plain button reads as a button on any background
     style.configure("TButton", background=p["surface"], foreground=p["text"], padding=(14, 7),
-                    borderwidth=1, relief="flat")
+                    borderwidth=1, relief="solid", bordercolor=p["border"],
+                    lightcolor=p["surface"], darkcolor=p["surface"])
     style.map("TButton", background=[("disabled", p["bg"]), ("pressed", p["heading"]), ("active", p["heading"])],
+              lightcolor=[("pressed", p["heading"]), ("active", p["heading"])],
+              darkcolor=[("pressed", p["heading"]), ("active", p["heading"])],
               foreground=[("disabled", p["muted"])])
     style.configure("Accent.TButton", background=p["accent"], foreground=p["accent_fg"],
-                    bordercolor=p["accent"], font=fonts["bold"])
+                    bordercolor=p["accent"], lightcolor=p["accent"], darkcolor=p["accent"], font=fonts["bold"])
     style.map("Accent.TButton", background=[("disabled", p["border"]), ("pressed", p["accent_hover"]),
                                             ("active", p["accent_hover"])],
-              bordercolor=[("active", p["accent_hover"])])
+              bordercolor=[("disabled", p["border"]), ("active", p["accent_hover"])],
+              lightcolor=[("disabled", p["border"]), ("active", p["accent_hover"])],
+              darkcolor=[("disabled", p["border"]), ("active", p["accent_hover"])])
     style.configure("Danger.TButton", background=p["surface"], foreground=p["danger"], bordercolor=p["danger"])
-    style.map("Danger.TButton", background=[("pressed", p["danger_hover"]), ("active", p["danger"])],
-              foreground=[("active", p["accent_fg"]), ("pressed", p["accent_fg"])])
+    style.map("Danger.TButton", background=[("disabled", p["bg"]), ("pressed", p["danger_hover"]),
+                                            ("active", p["danger"])],
+              foreground=[("disabled", p["muted"]), ("active", p["accent_fg"]), ("pressed", p["accent_fg"])],
+              bordercolor=[("disabled", p["border"])])
 
     # Inputs
     for widget in ("TEntry", "TSpinbox"):
