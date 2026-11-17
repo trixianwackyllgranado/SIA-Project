@@ -1,20 +1,21 @@
-"""Fake Data Generator: ITL313-18 (SIA 2 Lab) mini project.
+"""Utility Hub: ITL313-18 (SIA 2 Lab) mini project.
 
+Four utilities behind one login: Fake Data, URL Shortener, Email and SMS.
 Run:  python main.py
 """
 import tkinter as tk
 
-from app.db import Database
+from app.db import Database, default_db_path
 from app.ui import theme
-from app.ui.dashboard import DashboardFrame
 from app.ui.login import LoginFrame
+from app.ui.shell import ShellFrame
 
 
 class App(tk.Tk):
     def __init__(self, db_path=None):
         super().__init__()
-        self.title("Fake Data Generator")
-        self.db = Database(db_path) if db_path else Database()
+        self.title("Utility Hub")
+        self.db = Database(db_path or default_db_path())
         self.user = None
         self.theme = "light"
         self.fonts = theme.setup_fonts(self)
@@ -41,8 +42,8 @@ class App(tk.Tk):
     def on_login(self, user):
         self.user = {"id": user["id"], "username": user["username"]}
         self.set_theme(user["theme"], save=False)
-        self.minsize(980, 560)
-        self._swap(DashboardFrame(self, self, self.user))
+        self.minsize(1060, 640)
+        self._swap(ShellFrame(self, self, self.user))
 
     def logout(self):
         self.user = None
@@ -63,6 +64,9 @@ class App(tk.Tk):
         self.set_theme("light" if self.theme == "dark" else "dark")
 
     def close(self):
+        if self.screen is not None:
+            self.screen.destroy()  # lets the shell clean up a temporary CSV
+            self.screen = None
         self.db.close()
         self.destroy()
 
